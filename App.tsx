@@ -1,34 +1,87 @@
 import { StatusBar } from 'expo-status-bar'
-import { ImageBackground, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, ImageBackground, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native'
 import SearchInput from './components/SearchInput'
-import getImageForWeather from './utils/getImageForWeather'
+import getImageForWeather from './utils/weatherIImages'
 import { useEffect, useState } from 'react'
+import fetchWeather from './utils/api'
+
+type AppState = {
+  loading: boolean;
+  error: boolean;
+  address: string;
+  temperature: number;
+  description: string;
+}
+
+const initialState: AppState = {
+  loading: true,
+  error: false,
+  address: '',
+  temperature: 0,
+  description: ''
+}
 
 export default function App() {
-  const [location, setLocation] = useState<string>('')
+  const [state, setState] = useState<AppState>(initialState)
 
-  const updateLocation = (newLocation: string) => {
-    setLocation(newLocation)
+  const handleUpdateLocation = async (city: string) => {
+    if (!city) return
+
+    try {
+      const { address, temperature, description } = await fetchWeather(city)
+
+      setState({
+        loading: false,
+        error: false,
+        address,
+        temperature,
+        description
+      })
+    } catch (err) {
+      setState(prevState => ({
+        ...prevState,
+        loading: false,
+        error: true
+      }))
+    }
   }
 
   useEffect(() => {
-    updateLocation('San Francisco')
+    async function fetchInitialData() {
+      await handleUpdateLocation('San Francisco')
+    }
+    fetchInitialData()
   }, [])
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior='padding'>
+      <StatusBar style='auto' />
       <ImageBackground
-        source={getImageForWeather('Clear')}
+        source={getImageForWeather(state.description)}
         style={styles.imageContainer}
         imageStyle={styles.image}
-      />
+      >
       <View style={styles.detailsContainer}>
-        <Text style={[styles.largeText, styles.textStyle]}>{location}</Text>
-        <Text style={[styles.smallText, styles.textStyle]}>Light Cloud</Text>
-        <Text style={[styles.largeText, styles.textStyle]}>24&deg;</Text>
-        <SearchInput placeholder='Search any City' locationCallback={updateLocation}/>
+        <ActivityIndicator animating={state.loading} color='white' size='large'/>
+        {!state.loading && (
+          <View>
+            {state.error && (
+              <Text style={[styles.smallText, styles.textStyle]}>
+                Could not load weather data. Please try a different city.
+              </Text>
+            )}
+        {!state.error && (
+        <View>
+          <Text style={[styles.largeText, styles.textStyle]}>{state.address}</Text>
+          <Text style={[styles.smallText, styles.textStyle]}>{state.description}</Text>
+          <Text style={[styles.largeText, styles.textStyle]}>{state.temperature}&deg;</Text>
+        </View>
+        )}
+        <SearchInput placeholder='Search any City' locationCallback={handleUpdateLocation}/>
       </View>
-      <StatusBar style="auto" />
+      )}
+    </View>
+    </ImageBackground>
     </KeyboardAvoidingView>
   )
 }
